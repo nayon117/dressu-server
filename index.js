@@ -45,6 +45,7 @@ async function run() {
   try {
 
     const usersCollection = client.db('skillify').collection('users')
+    const classCollection = client.db('skillify').collection('classes')
 
 
 
@@ -106,6 +107,33 @@ async function run() {
       res.send(result)
     })
 
+    // teacher add class
+    app.post('/class-add', async (req, res) => {
+      const classDetails = req.body;
+      const result = await classCollection.insertOne({ ...classDetails, status: 'pending' })
+      res.send(result)
+    })
+
+    // get add class 
+    app.get('/class-add', async (req, res) => {
+      const result = await classCollection.find().toArray()
+      res.send(result)
+    })
+
+    // Express Route to handle admin approval for a class
+app.put('/class-add/approve/:id', async (req, res) => {
+  const id = req.params.id;
+  try {
+    const result = await classCollection.updateOne({ _id: ObjectId(id) }, { $set: { status: 'approved' } });
+    if (result.matchedCount > 0) {
+      res.status(200).json({ message: 'Class approved successfully' });
+    } else {
+      res.status(404).json({ error: 'Class not found' });
+    }
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to approve class' });
+  }
+});
 
 
 

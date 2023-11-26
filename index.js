@@ -1,38 +1,38 @@
-const express = require('express')
-const app = express()
-require('dotenv').config()
-const cors = require('cors')
-const cookieParser = require('cookie-parser')
-const { MongoClient, ServerApiVersion } = require('mongodb')
-const jwt = require('jsonwebtoken')
-const morgan = require('morgan')
-const port = process.env.PORT || 5000
+const express = require("express");
+const app = express();
+require("dotenv").config();
+const cors = require("cors");
+const cookieParser = require("cookie-parser");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+const jwt = require("jsonwebtoken");
+const morgan = require("morgan");
+const port = process.env.PORT || 5000;
 
 // middleware
 const corsOptions = {
-  origin: ['http://localhost:5173'],
+  origin: ["http://localhost:5173"],
   credentials: true,
   optionSuccessStatus: 200,
-}
-app.use(cors(corsOptions))
-app.use(express.json())
-app.use(cookieParser())
-app.use(morgan('dev'))
+};
+app.use(cors(corsOptions));
+app.use(express.json());
+app.use(cookieParser());
+app.use(morgan("dev"));
 const verifyToken = async (req, res, next) => {
-  const token = req.cookies?.token
-  console.log(token)
+  const token = req.cookies?.token;
+  console.log(token);
   if (!token) {
-    return res.status(401).send({ message: 'unauthorized access' })
+    return res.status(401).send({ message: "unauthorized access" });
   }
   jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
     if (err) {
-      console.log(err)
-      return res.status(401).send({ message: 'unauthorized access' })
+      console.log(err);
+      return res.status(401).send({ message: "unauthorized access" });
     }
-    req.user = decoded
-    next()
-  })
-}
+    req.user = decoded;
+    next();
+  });
+};
 
 const client = new MongoClient(process.env.DB_URI, {
   serverApi: {
@@ -40,119 +40,113 @@ const client = new MongoClient(process.env.DB_URI, {
     strict: true,
     deprecationErrors: true,
   },
-})
+});
 async function run() {
   try {
-
-    const usersCollection = client.db('skillify').collection('users')
-    const classCollection = client.db('skillify').collection('classes')
-
-
+    const usersCollection = client.db("skillify").collection("users");
+    const classCollection = client.db("skillify").collection("classes");
 
     // auth related api
-    app.post('/jwt', async (req, res) => {
-      const user = req.body
-      console.log('I need a new jwt', user)
+    app.post("/jwt", async (req, res) => {
+      const user = req.body;
+      console.log("I need a new jwt", user);
       const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
-        expiresIn: '365d',
-      })
+        expiresIn: "365d",
+      });
       res
-        .cookie('token', token, {
+        .cookie("token", token, {
           httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
+          secure: process.env.NODE_ENV === "production",
+          sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
         })
-        .send({ success: true })
-    })
+        .send({ success: true });
+    });
 
     // remove cookie after Logout
-    app.get('/logout', async (req, res) => {
+    app.get("/logout", async (req, res) => {
       try {
         res
-          .clearCookie('token', {
+          .clearCookie("token", {
             maxAge: 0,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
+            secure: process.env.NODE_ENV === "production",
+            sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
           })
-          .send({ success: true })
-        console.log('Logout successful')
+          .send({ success: true });
+        console.log("Logout successful");
       } catch (err) {
-        res.status(500).send(err)
+        res.status(500).send(err);
       }
-    })
+    });
 
     // Save or modify user email, status in DB
-    app.put('/users/:email', async (req, res) => {
-      const email = req.params.email
-      const user = req.body
-      const query = { email: email }
-      const options = { upsert: true }
-      const isExist = await usersCollection.findOne(query)
-      console.log('User found?----->', isExist)
-      if (isExist) return res.send(isExist)
+    app.put("/users/:email", async (req, res) => {
+      const email = req.params.email;
+      const user = req.body;
+      const query = { email: email };
+      const options = { upsert: true };
+      const isExist = await usersCollection.findOne(query);
+      console.log("User found?----->", isExist);
+      if (isExist) return res.send(isExist);
       const result = await usersCollection.updateOne(
         query,
         {
           $set: { ...user, timestamp: Date.now() },
         },
         options
-      )
-      res.send(result)
-    })
+      );
+      res.send(result);
+    });
 
-    // get user role 
-    app.get('/user/:email', async (req, res) => {
+    // get user role
+    app.get("/user/:email", async (req, res) => {
       const email = req.params.email;
-      const result = await usersCollection.findOne({email})
-      res.send(result)
-    })
+      const result = await usersCollection.findOne({ email });
+      res.send(result);
+    });
 
     // teacher add class
-    app.post('/class-add', async (req, res) => {
+    app.post("/class-add", async (req, res) => {
       const classDetails = req.body;
-      const result = await classCollection.insertOne({ ...classDetails, status: 'pending' })
+      const result = await classCollection.insertOne({
+        ...classDetails,
+        status: "pending",
+      });
+      res.send(result);
+    });
+
+    // get add class
+    app.get("/class-add", async (req, res) => {
+      const result = await classCollection.find().toArray();
+      res.send(result);
+    });
+
+    app.put("/class-add/approve/:id", async (req, res) => {
+      const id = req.params.id;
+      const result = await classCollection.updateOne(
+        { _id:new ObjectId(id), status: { $ne: "approved" } },
+        { $set: { status: "approved" } }
+      );
       res.send(result)
-    })
 
-    // get add class 
-    app.get('/class-add', async (req, res) => {
-      const result = await classCollection.find().toArray()
-      res.send(result)
-    })
-
-    // Express Route to handle admin approval for a class
-app.put('/class-add/approve/:id', async (req, res) => {
-  const id = req.params.id;
-  try {
-    const result = await classCollection.updateOne({ _id: ObjectId(id) }, { $set: { status: 'approved' } });
-    if (result.matchedCount > 0) {
-      res.status(200).json({ message: 'Class approved successfully' });
-    } else {
-      res.status(404).json({ error: 'Class not found' });
-    }
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to approve class' });
-  }
-});
-
-
+      
+    });
 
     // Send a ping to confirm a successful connection
-    await client.db('admin').command({ ping: 1 })
+    await client.db("admin").command({ ping: 1 });
     console.log(
-      'Pinged your deployment. You successfully connected to MongoDB!'
-    )
+      "Pinged your deployment. You successfully connected to MongoDB!"
+    );
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
   }
 }
-run().catch(console.dir)
+run().catch(console.dir);
 
-app.get('/', (req, res) => {
-  res.send('Hello from Skillify Server..')
-})
+app.get("/", (req, res) => {
+  res.send("Hello from Skillify Server..");
+});
 
 app.listen(port, () => {
-  console.log(`Skillify  is running on port ${port}`)
-})
+  console.log(`Skillify  is running on port ${port}`);
+});

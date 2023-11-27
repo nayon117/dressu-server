@@ -45,6 +45,7 @@ async function run() {
   try {
     const usersCollection = client.db("skillify").collection("users");
     const classCollection = client.db("skillify").collection("classes");
+    const requestCollection = client.db("skillify").collection("requests");
 
     // auth related api
     app.post("/jwt", async (req, res) => {
@@ -161,6 +162,14 @@ async function run() {
 
       
     });
+
+    // --------request collection -------------------
+    app.post('/teacher/requests', async (req, res) => {
+      const request = req.body;
+      const result = await requestCollection.insertOne(request)
+      res.send(result)
+    })
+
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });

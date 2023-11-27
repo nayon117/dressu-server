@@ -78,6 +78,8 @@ async function run() {
       }
     });
 
+    // user collection -------------------
+
     // Save or modify user email, status in DB
     app.put("/users/:email", async (req, res) => {
       const email = req.params.email;
@@ -104,6 +106,15 @@ async function run() {
       res.send(result);
     });
 
+    // get users
+    app.get('/users', async (req, res) => {
+      const result = await usersCollection.find().toArray()
+      res.send(result)
+    })
+
+    // ----------class collection -------------
+
+
     // teacher add class
     app.post("/class-add", async (req, res) => {
       const classDetails = req.body;
@@ -114,9 +125,14 @@ async function run() {
       res.send(result);
     });
 
-    // get add class
-    app.get("/class-add", async (req, res) => {
+    // get add class requests
+    app.get("/class-add/requests", async (req, res) => {
       const result = await classCollection.find().toArray();
+      res.send(result);
+    });
+    //  approved classes
+    app.get("/class-add/approved", async (req, res) => {
+      const result = await classCollection.find({status:'approved'}).toArray();
       res.send(result);
     });
 

@@ -7,6 +7,7 @@ const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const jwt = require("jsonwebtoken");
 const morgan = require("morgan");
 const port = process.env.PORT || 5000;
+const stripe = require('stripe')(process.env.PAYMENT_SECRET_KEY)
 
 // middleware
 const corsOptions = {
@@ -47,6 +48,7 @@ async function run() {
     const usersCollection = client.db("skillify").collection("users");
     const classCollection = client.db("skillify").collection("classes");
     const requestCollection = client.db("skillify").collection("requests");
+    const bookingCollection = client.db("skillify").collection("bookings");
 
     // // auth related api
     app.post("/jwt", async (req, res) => {
@@ -163,6 +165,13 @@ async function run() {
       res.send(result);
     });
 
+    app.get('/recommended-classes', async (req, res) => {
+      const result = await classCollection.find({ status: "approved" }) .sort({ price: -1 })  
+      .limit(6) 
+        .toArray();
+      res.send(result)
+    })
+
     // find single id data for updating purpose 
     app.get('/class-add/:id', async (req, res) => {
       const id = req.params.id;
@@ -203,7 +212,7 @@ async function run() {
       res.send(result);
     });
 
-    //     // get teacher request
+     // get teacher request
     app.get("/teacher/pending-requests", async (req, res) => {
       const result = await requestCollection
         .find({ status: "pending" })
@@ -247,6 +256,31 @@ async function run() {
         res.status(500).json({ error: "Failed to approve request" });
       }
     });
+
+
+    // stripe and payment things ---------------------------
+    
+    app.post('/create-payment-intent', verifyToken, async (req, res) => {
+      const { price } = req.body
+      const amount = parseInt(price * 100)
+      if (!price || amount < 1) return
+      const { client_secret } = await stripe.paymentIntents.create({
+        amount: amount,
+        currency: 'usd',
+        payment_method_types: ['card'],
+      })
+      res.send({ clientSecret: client_secret })
+    })
+
+     // set item info in a booking collection
+     app.post('/bookings',verifyToken, async (req, res) => {
+      const booking = req.body;
+      const result = await bookingCollection.insertOne(booking)
+      res.send(result)
+    })
+
+
+
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });

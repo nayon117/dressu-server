@@ -164,7 +164,6 @@ async function run() {
     });
 
     // find single id data for updating purpose 
-    // Get a single class by ID
     app.get('/class-add/:id', async (req, res) => {
       const id = req.params.id;
       const query = {_id:new ObjectId(id)}
@@ -172,6 +171,7 @@ async function run() {
       res.send(result);
     })
 
+    // update class collection data
     app.patch("/class-add/:id", async (req, res) => {
       const item = req.body;
       const id = req.params.id;
@@ -185,6 +185,14 @@ async function run() {
         },
       };
       const result = await classCollection.updateOne(filter, updatedDoc);
+      res.send(result);
+    });
+
+    // delete class collection data
+    app.delete("/class-add/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await classCollection.deleteOne(query);
       res.send(result);
     });
 

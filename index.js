@@ -43,11 +43,12 @@ const client = new MongoClient(process.env.DB_URI, {
 });
 async function run() {
   try {
+    await client.connect();
     const usersCollection = client.db("skillify").collection("users");
     const classCollection = client.db("skillify").collection("classes");
     const requestCollection = client.db("skillify").collection("requests");
 
-    // auth related api
+    // // auth related api
     app.post("/jwt", async (req, res) => {
       const user = req.body;
       console.log("I need a new jwt", user);
@@ -63,7 +64,7 @@ async function run() {
         .send({ success: true });
     });
 
-    // remove cookie after Logout
+    // // remove cookie after Logout
     app.get("/logout", async (req, res) => {
       try {
         res
@@ -79,9 +80,9 @@ async function run() {
       }
     });
 
-    // user collection -------------------
+    // // user collection -------------------
 
-    // Save or modify user email, status in DB
+    // // Save or modify user email, status in DB
     app.put("/users/:email", async (req, res) => {
       const email = req.params.email;
       const user = req.body;
@@ -100,38 +101,37 @@ async function run() {
       res.send(result);
     });
 
-    // get user role
+    // // get user role
     app.get("/user/:email", async (req, res) => {
       const email = req.params.email;
       const result = await usersCollection.findOne({ email });
       res.send(result);
     });
 
-    // get users
-    app.get('/users',verifyToken, async (req, res) => {
-      const result = await usersCollection.find().toArray()
-      res.send(result)
-    })
+    // // get users
+    app.get("/users", verifyToken, async (req, res) => {
+      const result = await usersCollection.find().toArray();
+      res.send(result);
+    });
 
-    app.put('/users/update/:email',verifyToken, async (req, res) => {
+    app.put("/users/update/:email", verifyToken, async (req, res) => {
       const email = req.params.email;
       const user = req.body;
-      const query = { email: email }
-      const options = { upsert: true }
+      const query = { email: email };
+      const options = { upsert: true };
       const updateDoc = {
         $set: {
           ...user,
-          timestamp:Date.now()
-       }
-      }
-      const result = await usersCollection.updateOne(query,updateDoc,options)
-      res.send(result)
-    })
+          timestamp: Date.now(),
+        },
+      };
+      const result = await usersCollection.updateOne(query, updateDoc, options);
+      res.send(result);
+    });
 
-    // ----------class collection -------------
+    // // ----------class collection -------------
 
-
-    // teacher add class
+    // // teacher add class
     app.post("/class-add", async (req, res) => {
       const classDetails = req.body;
       const result = await classCollection.insertOne({
@@ -141,35 +141,104 @@ async function run() {
       res.send(result);
     });
 
-    // get add class requests
+    // // get add class requests
     app.get("/class-add/requests", async (req, res) => {
       const result = await classCollection.find().toArray();
       res.send(result);
     });
-    //  approved classes
+    // //  approved classes
     app.get("/class-add/approved", async (req, res) => {
-      const result = await classCollection.find({status:'approved'}).toArray();
+      const result = await classCollection
+        .find({ status: "approved" })
+        .toArray();
       res.send(result);
     });
 
     app.put("/class-add/approve/:id", async (req, res) => {
       const id = req.params.id;
       const result = await classCollection.updateOne(
-        { _id:new ObjectId(id), status: { $ne: "approved" } },
+        { _id: new ObjectId(id), status: { $ne: "approved" } },
         { $set: { status: "approved" } }
       );
-      res.send(result)
+      res.send(result);
+    });
 
-      
+    // find single id data for updating purpose 
+    // Get a single class by ID
+    app.get('/class-add/:id', async (req, res) => {
+      const id = req.params.id;
+      const query = {_id:new ObjectId(id)}
+      const result = await classCollection.findOne(query)
+      res.send(result);
+    })
+
+    app.patch("/class-add/:id", async (req, res) => {
+      const item = req.body;
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) };
+      const updatedDoc = {
+        $set: {
+          title: item.title,
+          price: item.price,
+          details: item.details,
+          image: item.image,
+        },
+      };
+      const result = await classCollection.updateOne(filter, updatedDoc);
+      res.send(result);
     });
 
     // --------request collection -------------------
-    app.post('/teacher/requests', async (req, res) => {
+    app.post("/teacher/requests", async (req, res) => {
       const request = req.body;
-      const result = await requestCollection.insertOne(request)
-      res.send(result)
-    })
+      const result = await requestCollection.insertOne(request);
+      res.send(result);
+    });
 
+    //     // get teacher request
+    app.get("/teacher/pending-requests", async (req, res) => {
+      const result = await requestCollection
+        .find({ status: "pending" })
+        .toArray();
+      res.send(result);
+    });
+
+    // Approve a teacher request and update user role
+    app.put("/teacher/approve-request/:id", async (req, res) => {
+      const id = req.params.id;
+      try {
+        const result = await requestCollection.updateOne(
+          { _id: new ObjectId(id), status: { $ne: "approved" } },
+          { $set: { status: "approved" } }
+        );
+
+        if (result.modifiedCount === 1) {
+          const request = await requestCollection.findOne({
+            _id: new ObjectId(id),
+          });
+
+          if (request) {
+            const userEmail = request.email;
+
+            // Update user's role to "teacher"
+            const updateUser = await usersCollection.updateOne(
+              { email: userEmail },
+              { $set: { role: "teacher" } }
+            );
+
+            if (updateUser.modifiedCount === 1) {
+              return res.send({
+                message: "Request approved, user role updated to teacher",
+              });
+            }
+          }
+        }
+
+        res.status(404).json({ error: "Failed to update user role" });
+      } catch (error) {
+        res.status(500).json({ error: "Failed to approve request" });
+      }
+    });
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });

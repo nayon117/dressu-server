@@ -50,6 +50,32 @@ async function run() {
     const requestCollection = client.db("skillify").collection("requests");
     const bookingCollection = client.db("skillify").collection("bookings");
 
+
+
+    // Role Verification----------------------------
+
+    // For admins
+    const verifyAdmin = async (req, res, next) => {
+      const user = req.user
+      console.log('admin---', user)
+      const query = { email: user?.email }
+      const result = await usersCollection.findOne(query)
+      if (!result || result?.role !== 'admin')
+        return res.status(401).send({ message: 'unauthorized access' })
+      next()
+    }
+
+    // For teacher
+    const verifyTeacher = async (req, res, next) => {
+      const user = req.user
+      const query = { email: user?.email }
+      const result = await usersCollection.findOne(query)
+      if (!result || result?.role !== 'teacher')
+        return res.status(401).send({ message: 'unauthorized access' })
+      next()
+    }
+
+
     // // auth related api
     app.post("/jwt", async (req, res) => {
       const user = req.body;

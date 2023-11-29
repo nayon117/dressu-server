@@ -7,15 +7,32 @@ const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const jwt = require("jsonwebtoken");
 const morgan = require("morgan");
 const port = process.env.PORT || 5000;
-const stripe = require('stripe')(process.env.PAYMENT_SECRET_KEY)
+const stripe = require("stripe")(process.env.PAYMENT_SECRET_KEY);
 
-// middleware
-const corsOptions = {
-  origin: ["http://localhost:5173"],
-  credentials: true,
-  optionSuccessStatus: 200,
-};
-app.use(cors(corsOptions));
+// // middleware
+// const corsOptions = {
+//   origin: [
+//     // "http://localhost:5173",
+//     "https://skillify-client.web.app/",
+//     "https://skillify-client.firebaseapp.com/"
+//   ],
+//   credentials: true,
+//   optionSuccessStatus: 200,
+// };
+// app.use(cors(corsOptions));
+
+app.use(
+  cors({
+    origin: [
+      "http://localhost:5173",
+      // "https://skillify-client.web.app",
+      // "https://skillify-client.firebaseapp.com"
+    ],
+    credentials: true,
+  })
+);
+
+
 app.use(express.json());
 app.use(cookieParser());
 app.use(morgan("dev"));
@@ -44,37 +61,36 @@ const client = new MongoClient(process.env.DB_URI, {
 });
 async function run() {
   try {
-    await client.connect();
+    // await client.connect();
     const usersCollection = client.db("skillify").collection("users");
     const classCollection = client.db("skillify").collection("classes");
     const requestCollection = client.db("skillify").collection("requests");
     const bookingCollection = client.db("skillify").collection("bookings");
-
-
+    const assignmentCollection = client.db("skillify").collection("assignments");
+    const reviewCollection = client.db("skillify").collection("reviews");
 
     // Role Verification----------------------------
 
     // For admins
     const verifyAdmin = async (req, res, next) => {
-      const user = req.user
-      console.log('admin---', user)
-      const query = { email: user?.email }
-      const result = await usersCollection.findOne(query)
-      if (!result || result?.role !== 'admin')
-        return res.status(401).send({ message: 'unauthorized access' })
-      next()
-    }
+      const user = req.user;
+      console.log("admin---", user);
+      const query = { email: user?.email };
+      const result = await usersCollection.findOne(query);
+      if (!result || result?.role !== "admin")
+        return res.status(401).send({ message: "unauthorized access" });
+      next();
+    };
 
     // For teacher
     const verifyTeacher = async (req, res, next) => {
-      const user = req.user
-      const query = { email: user?.email }
-      const result = await usersCollection.findOne(query)
-      if (!result || result?.role !== 'teacher')
-        return res.status(401).send({ message: 'unauthorized access' })
-      next()
-    }
-
+      const user = req.user;
+      const query = { email: user?.email };
+      const result = await usersCollection.findOne(query);
+      if (!result || result?.role !== "teacher")
+        return res.status(401).send({ message: "unauthorized access" });
+      next();
+    };
 
     // // auth related api
     app.post("/jwt", async (req, res) => {
@@ -129,7 +145,7 @@ async function run() {
       res.send(result);
     });
 
-    // // get user role
+    // get user role
     app.get("/user/:email", async (req, res) => {
       const email = req.params.email;
       const result = await usersCollection.findOne({ email });
@@ -170,16 +186,33 @@ async function run() {
     });
 
     // // get add class requests
-    app.get("/class-add/requests", async (req, res) => {
+    app.get("/class-add/all/requests", async (req, res) => {
       const result = await classCollection.find().toArray();
+      res.send(result);
+    });
+    app.get("/class-add/requests", async (req, res) => {
+      const email = req.query.email;
+      const result = await classCollection.find({ email: email }).toArray();
       res.send(result);
     });
     // //  approved classes
     app.get("/class-add/approved", async (req, res) => {
+      const page = parseInt( req.query.page)
+      const size = parseInt(req.query.size)
+      console.log('pagination',page,size );
       const result = await classCollection
         .find({ status: "approved" })
+        .skip(page * size)
+        .limit(size)
         .toArray();
       res.send(result);
+    });
+
+    app.get("/classes-count", async (req, res) => {
+      const count = await classCollection.countDocuments({
+        status: "approved",
+      });
+      res.send({ count });
     });
 
     app.put("/class-add/approve/:id", async (req, res) => {
@@ -191,20 +224,22 @@ async function run() {
       res.send(result);
     });
 
-    app.get('/recommended-classes', async (req, res) => {
-      const result = await classCollection.find({ status: "approved" }) .sort({ price: -1 })  
-      .limit(6) 
+    app.get("/recommended-classes", async (req, res) => {
+      const result = await classCollection
+        .find({ status: "approved" })
+        .sort({ price: -1 })
+        .limit(6)
         .toArray();
-      res.send(result)
-    })
-
-    // find single id data for updating purpose 
-    app.get('/class-add/:id', async (req, res) => {
-      const id = req.params.id;
-      const query = {_id:new ObjectId(id)}
-      const result = await classCollection.findOne(query)
       res.send(result);
-    })
+    });
+
+    // find single id data for updating purpose
+    app.get("/class-add/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await classCollection.findOne(query);
+      res.send(result);
+    });
 
     // update class collection data
     app.patch("/class-add/:id", async (req, res) => {
@@ -216,7 +251,6 @@ async function run() {
           title: item.title,
           price: item.price,
           details: item.details,
-          image: item.image,
         },
       };
       const result = await classCollection.updateOne(filter, updatedDoc);
@@ -238,81 +272,126 @@ async function run() {
       res.send(result);
     });
 
-     // get teacher request
+    // get teacher request
     app.get("/teacher/pending-requests", async (req, res) => {
-      const result = await requestCollection
-        .find({ status: "pending" })
+      const result = await requestCollection.find().toArray();
+      res.send(result);
+    });
+
+ 
+  // Approve a teacher request and update user role
+app.put("/teacher/approve-request/:id", async (req, res) => {
+  
+    const id = req.params.id;
+    const request = await requestCollection.findOne(
+      { _id: ObjectId(id), status: "pending" },
+      { $set: { status: "accepted" } },
+      { returnOriginal: false }
+    );
+
+    if (request.value) {
+      // Update user role to "teacher" in the users collection
+      const email = request.value.email;
+      const updatedUser = await usersCollection.updateOne(
+        { email: email },
+        { $set: { role: "teacher" } }
+      )
+      res.send(updatedUser)
+  } 
+   
+});
+
+
+    // stripe and payment things ---------------------------
+
+    app.post("/create-payment-intent", verifyToken, async (req, res) => {
+      const { price } = req.body;
+      const amount = parseInt(price * 100);
+      if (!price || amount < 1) return;
+      const { client_secret } = await stripe.paymentIntents.create({
+        amount: amount,
+        currency: "usd",
+        payment_method_types: ["card"],
+      });
+      res.send({ clientSecret: client_secret });
+    });
+
+    // set item info in a booking collection
+    app.post("/bookings", verifyToken, async (req, res) => {
+      const booking = req.body;
+      const result = await bookingCollection.insertOne(booking);
+      res.send(result);
+    });
+
+    app.get("/bookings", async (req, res) => {
+      const stEmail = req.query.stEmail;
+      console.log(stEmail);
+      const result = await bookingCollection
+        .find({ stEmail: stEmail })
         .toArray();
       res.send(result);
     });
 
-    // Approve a teacher request and update user role
-    app.put("/teacher/approve-request/:id", async (req, res) => {
-      const id = req.params.id;
+
+    app.get('/total-enrollment/:id', async (req, res) => {
       try {
-        const result = await requestCollection.updateOne(
-          { _id: new ObjectId(id), status: { $ne: "approved" } },
-          { $set: { status: "approved" } }
-        );
-
-        if (result.modifiedCount === 1) {
-          const request = await requestCollection.findOne({
-            _id: new ObjectId(id),
-          });
-
-          if (request) {
-            const userEmail = request.email;
-
-            // Update user's role to "teacher"
-            const updateUser = await usersCollection.updateOne(
-              { email: userEmail },
-              { $set: { role: "teacher" } }
-            );
-
-            if (updateUser.modifiedCount === 1) {
-              return res.send({
-                message: "Request approved, user role updated to teacher",
-              });
+        const id = req.params.id;
+        const aggregation = [
+          {
+            $match: {
+              classId: id  
+            }
+          },
+          {
+            $group: {
+              _id: "$classId",
+              totalEnrollment: {
+                $sum: {
+                  $cond: [{ $eq: [{ $type: "$_id" }, "missing"] }, 0, 1]
+                }
+              }
             }
           }
-        }
-
-        res.status(404).json({ error: "Failed to update user role" });
+        ];
+        const enrollmentForClass = await bookingCollection.aggregate(aggregation).toArray();
+        res.send(enrollmentForClass);
       } catch (error) {
-        res.status(500).json({ error: "Failed to approve request" });
+        console.error(error);
+        res.status(500).send({ error: "Failed to fetch enrollment data for the specific class" });
       }
     });
-
-
-    // stripe and payment things ---------------------------
     
-    app.post('/create-payment-intent', verifyToken, async (req, res) => {
-      const { price } = req.body
-      const amount = parseInt(price * 100)
-      if (!price || amount < 1) return
-      const { client_secret } = await stripe.paymentIntents.create({
-        amount: amount,
-        currency: 'usd',
-        payment_method_types: ['card'],
-      })
-      res.send({ clientSecret: client_secret })
+    
+    // assignment collection ---------------
+    app.post('/assignments', async (req, res) => {
+      const assignment = req.body;
+      const result = await assignmentCollection.insertOne(assignment)
+      res.send(result)
     })
+    app.get('/assignments', async (req, res) => {
+      const result = await assignmentCollection.find().toArray()
+        res.send(result)
+    })
+   
 
-     // set item info in a booking collection
-     app.post('/bookings',verifyToken, async (req, res) => {
-      const booking = req.body;
-      const result = await bookingCollection.insertOne(booking)
+    // count assignment 
+    app.get("/assignments-count", async (req, res) => {
+      const count = await assignmentCollection.countDocuments();
+      res.send({ count });
+    });
+
+    // review collection ----------
+    app.post('/reviews', async (req, res) => {
+      const review = req.body;
+      const result = await reviewCollection.insertOne(review)
       res.send(result)
     })
 
-
-
-
     // Send a ping to confirm a successful connection
-    await client.db("admin").command({ ping: 1 });
-    console.log(
-      "Pinged your deployment. You successfully connected to MongoDB!"
-    );
+    // await client.db("admin").command({ ping: 1 });
+    // console.log(
+    //   "Pinged your deployment. You successfully connected to MongoDB!"
+    // );
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();

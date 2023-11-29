@@ -386,7 +386,22 @@ app.put("/teacher/approve-request/:id", async (req, res) => {
       const result = await reviewCollection.insertOne(review)
       res.send(result)
     })
+    app.get('/reviews', async (req, res) => {
+       const result = await reviewCollection.find().toArray()
+      res.send(result)
+    })
 
+    // stats
+    app.get('/stats', async (req, res) => {
+      const users = await usersCollection.estimatedDocumentCount()
+      const classes = await classCollection.estimatedDocumentCount()
+      const bookings = await bookingCollection.estimatedDocumentCount()
+      res.send({
+        users,classes,bookings
+      })
+    })
+
+    
     // Send a ping to confirm a successful connection
     // await client.db("admin").command({ ping: 1 });
     // console.log(

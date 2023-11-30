@@ -9,24 +9,13 @@ const morgan = require("morgan");
 const port = process.env.PORT || 5000;
 const stripe = require("stripe")(process.env.PAYMENT_SECRET_KEY);
 
-// // middleware
-// const corsOptions = {
-//   origin: [
-//     // "http://localhost:5173",
-//     "https://skillify-client.web.app/",
-//     "https://skillify-client.firebaseapp.com/"
-//   ],
-//   credentials: true,
-//   optionSuccessStatus: 200,
-// };
-// app.use(cors(corsOptions));
 
 app.use(
   cors({
     origin: [
-      "http://localhost:5173",
-      // "https://skillify-client.web.app",
-      // "https://skillify-client.firebaseapp.com"
+      // "http://localhost:5173",
+      "https://skillify-client.web.app",
+      "https://skillify-client.firebaseapp.com"
     ],
     credentials: true,
   })
@@ -224,6 +213,16 @@ async function run() {
       res.send(result);
     });
 
+    app.put("/class-add/reject/:id", async (req, res) => {
+      const id = req.params.id;
+      const result = await classCollection.updateOne(
+        { _id: new ObjectId(id), status: { $ne: "rejected" } },
+        { $set: { status: "rejected" } }
+      );
+      res.send(result);
+    });
+    
+
     app.get("/recommended-classes", async (req, res) => {
       const result = await classCollection
         .find({ status: "approved" })
@@ -280,27 +279,26 @@ async function run() {
 
  
   // Approve a teacher request and update user role
-app.put("/teacher/approve-request/:id", async (req, res) => {
+  app.put("/teacher/approve-request/:id", async (req, res) => {
+    try {
+      const id = req.params.id;
+      const result = await requestCollection.updateOne(
+        { _id: new ObjectId(id), status: { $ne: "approved" } },
+        { $set: { status: "approved" } }
+      );
   
-    const id = req.params.id;
-    const request = await requestCollection.findOne(
-      { _id: ObjectId(id), status: "pending" },
-      { $set: { status: "accepted" } },
-      { returnOriginal: false }
-    );
-
-    if (request.value) {
-      // Update user role to "teacher" in the users collection
-      const email = request.value.email;
-      const updatedUser = await usersCollection.updateOne(
-        { email: email },
-        { $set: { role: "teacher" } }
-      )
-      res.send(updatedUser)
-  } 
-   
-});
-
+      if (result.modifiedCount === 1) {
+        return res.send({
+          message: "Request approved, user role updated to teacher",
+        });
+      } else {
+        res.status(404).json({ error: "Failed to update user role" });
+      }
+    } catch (error) {
+      res.status(500).json({ error: "Failed to approve request" });
+    }
+  });
+  
 
     // stripe and payment things ---------------------------
 

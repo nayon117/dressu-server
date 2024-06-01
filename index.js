@@ -13,7 +13,7 @@ const stripe = require("stripe")(process.env.PAYMENT_SECRET_KEY);
 app.use(
   cors({
     origin: [
-      // "http://localhost:5173",
+      "http://localhost:5173",
       "https://skillify-client.web.app",
       "https://skillify-client.firebaseapp.com"
     ],
@@ -53,7 +53,7 @@ async function run() {
     // await client.connect();
     const usersCollection = client.db("skillify").collection("users");
     const classCollection = client.db("skillify").collection("classes");
-    const requestCollection = client.db("skillify").collection("requests");
+    const blogCollection = client.db("skillify").collection("blogs");
     const bookingCollection = client.db("skillify").collection("bookings");
     const assignmentCollection = client.db("skillify").collection("assignments");
     const reviewCollection = client.db("skillify").collection("reviews");
@@ -165,75 +165,41 @@ async function run() {
     // // ----------class collection -------------
 
     // // teacher add class
-    app.post("/class-add", async (req, res) => {
+    app.post("/products", async (req, res) => {
       const classDetails = req.body;
-      const result = await classCollection.insertOne({
-        ...classDetails,
-        status: "pending",
-      });
+     const result = await classCollection.insertOne(classDetails);
       res.send(result);
     });
 
-    // // get add class requests
-    app.get("/class-add/all/requests", async (req, res) => {
-      const result = await classCollection.find().toArray();
-      res.send(result);
-    });
-    app.get("/class-add/requests", async (req, res) => {
-      const email = req.query.email;
-      const result = await classCollection.find({ email: email }).toArray();
-      res.send(result);
-    });
-    // //  approved classes
-    app.get("/class-add/approved", async (req, res) => {
+    // // get products
+   
+    app.get("/products", async (req, res) => {
       const page = parseInt( req.query.page)
       const size = parseInt(req.query.size)
-      console.log('pagination',page,size );
       const result = await classCollection
-        .find({ status: "approved" })
+        .find()
         .skip(page * size)
         .limit(size)
         .toArray();
       res.send(result);
     });
 
-    app.get("/classes-count", async (req, res) => {
-      const count = await classCollection.countDocuments({
-        status: "approved",
-      });
+    app.get("/products-count", async (req, res) => {
+      const count = await classCollection.countDocuments();
       res.send({ count });
     });
 
-    app.put("/class-add/approve/:id", async (req, res) => {
-      const id = req.params.id;
-      const result = await classCollection.updateOne(
-        { _id: new ObjectId(id), status: { $ne: "approved" } },
-        { $set: { status: "approved" } }
-      );
-      res.send(result);
-    });
-
-    app.put("/class-add/reject/:id", async (req, res) => {
-      const id = req.params.id;
-      const result = await classCollection.updateOne(
-        { _id: new ObjectId(id), status: { $ne: "rejected" } },
-        { $set: { status: "rejected" } }
-      );
-      res.send(result);
-    });
-    
-
-    app.get("/recommended-classes", async (req, res) => {
+    app.get("/latest-products", async (req, res) => {
       const result = await classCollection
-        .find({ status: "approved" })
-        .sort({ price: -1 })
+        .find()
+        .sort({ createdAt: -1 })
         .limit(6)
         .toArray();
       res.send(result);
     });
 
     // find single id data for updating purpose
-    app.get("/class-add/:id", async (req, res) => {
+    app.get("/product/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await classCollection.findOne(query);
@@ -241,64 +207,48 @@ async function run() {
     });
 
     // update class collection data
-    app.patch("/class-add/:id", async (req, res) => {
+    app.patch("/product/:id", async (req, res) => {
       const item = req.body;
       const id = req.params.id;
       const filter = { _id: new ObjectId(id) };
+      
+      // Construct the updated document based on the provided data
       const updatedDoc = {
         $set: {
-          title: item.title,
+          name: item.name,
           price: item.price,
-          details: item.details,
+          short_details: item.short_details,
+          long_details: item.long_details,
+          size: item.size,
+          brand: item.brand,
+          category: item.category,
         },
       };
-      const result = await classCollection.updateOne(filter, updatedDoc);
-      res.send(result);
+    
+      // Check if the image data is provided in the request
+      if (item.image) {
+        updatedDoc.$set.image = item.image;
+      }
+    
+      try {
+        // Update the document in the database
+        const result = await classCollection.updateOne(filter, updatedDoc);
+        res.send(result);
+      } catch (error) {
+        console.error("Error updating product:", error);
+        res.status(500).send("Error updating product");
+      }
     });
 
     // delete class collection data
-    app.delete("/class-add/:id", async (req, res) => {
+    app.delete("/product/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await classCollection.deleteOne(query);
       res.send(result);
     });
 
-    // --------request collection -------------------
-    app.post("/teacher/requests", async (req, res) => {
-      const request = req.body;
-      const result = await requestCollection.insertOne(request);
-      res.send(result);
-    });
 
-    // get teacher request
-    app.get("/teacher/pending-requests", async (req, res) => {
-      const result = await requestCollection.find().toArray();
-      res.send(result);
-    });
-
- 
-  // Approve a teacher request and update user role
-  app.put("/teacher/approve-request/:id", async (req, res) => {
-    try {
-      const id = req.params.id;
-      const result = await requestCollection.updateOne(
-        { _id: new ObjectId(id), status: { $ne: "approved" } },
-        { $set: { status: "approved" } }
-      );
-  
-      if (result.modifiedCount === 1) {
-        return res.send({
-          message: "Request approved, user role updated to teacher",
-        });
-      } else {
-        res.status(404).json({ error: "Failed to update user role" });
-      }
-    } catch (error) {
-      res.status(500).json({ error: "Failed to approve request" });
-    }
-  });
-  
 
     // stripe and payment things ---------------------------
 
@@ -331,53 +281,16 @@ async function run() {
     });
 
 
-    app.get('/total-enrollment/:id', async (req, res) => {
-      try {
-        const id = req.params.id;
-        const aggregation = [
-          {
-            $match: {
-              classId: id  
-            }
-          },
-          {
-            $group: {
-              _id: "$classId",
-              totalEnrollment: {
-                $sum: {
-                  $cond: [{ $eq: [{ $type: "$_id" }, "missing"] }, 0, 1]
-                }
-              }
-            }
-          }
-        ];
-        const enrollmentForClass = await bookingCollection.aggregate(aggregation).toArray();
-        res.send(enrollmentForClass);
-      } catch (error) {
-        console.error(error);
-        res.status(500).send({ error: "Failed to fetch enrollment data for the specific class" });
-      }
-    });
-    
-    
-    // assignment collection ---------------
-    app.post('/assignments', async (req, res) => {
-      const assignment = req.body;
-      const result = await assignmentCollection.insertOne(assignment)
-      res.send(result)
-    })
-    app.get('/assignments', async (req, res) => {
-      const result = await assignmentCollection.find().toArray()
-        res.send(result)
-    })
-   
 
-    // count assignment 
-    app.get("/assignments-count", async (req, res) => {
-      const count = await assignmentCollection.countDocuments();
-      res.send({ count });
+    // blog 
+    app.post("/blogs", async (req, res) => {
+      const blogDetails = req.body;
+     const result = await blogCollection.insertOne(blogDetails);
+      res.send(result);
     });
 
+    
+ 
     // review collection ----------
     app.post('/reviews', async (req, res) => {
       const review = req.body;
@@ -389,15 +302,6 @@ async function run() {
       res.send(result)
     })
 
-    // stats
-    app.get('/stats', async (req, res) => {
-      const users = await usersCollection.estimatedDocumentCount()
-      const classes = await classCollection.estimatedDocumentCount()
-      const bookings = await bookingCollection.estimatedDocumentCount()
-      res.send({
-        users,classes,bookings
-      })
-    })
 
     
     // Send a ping to confirm a successful connection

@@ -51,12 +51,12 @@ const client = new MongoClient(process.env.DB_URI, {
 async function run() {
   try {
     // await client.connect();
-    const usersCollection = client.db("skillify").collection("users");
-    const classCollection = client.db("skillify").collection("classes");
-    const blogCollection = client.db("skillify").collection("blogs");
-    const bookingCollection = client.db("skillify").collection("bookings");
-    const assignmentCollection = client.db("skillify").collection("assignments");
-    const reviewCollection = client.db("skillify").collection("reviews");
+    const usersCollection = client.db("dressu").collection("users");
+    const productCollection = client.db("dressu").collection("products");
+    const blogCollection = client.db("dressu").collection("blogs");
+    const bookingCollection = client.db("dressu").collection("bookings");
+    const reviewCollection = client.db("dressu").collection("reviews");
+    const cartCollection = client.db("dressu").collection("carts");
 
     // Role Verification----------------------------
 
@@ -81,7 +81,7 @@ async function run() {
       next();
     };
 
-    // // auth related api
+     // auth related api
     app.post("/jwt", async (req, res) => {
       const user = req.body;
       console.log("I need a new jwt", user);
@@ -97,7 +97,7 @@ async function run() {
         .send({ success: true });
     });
 
-    // // remove cookie after Logout
+  // remove cookie after Logout
     app.get("/logout", async (req, res) => {
       try {
         res
@@ -141,7 +141,7 @@ async function run() {
       res.send(result);
     });
 
-    // // get users
+ // get users
     app.get("/users", verifyToken, async (req, res) => {
       const result = await usersCollection.find().toArray();
       res.send(result);
@@ -162,21 +162,21 @@ async function run() {
       res.send(result);
     });
 
-    // // ----------class collection -------------
+    // // ----------Product collection -------------
 
-    // // teacher add class
+  // save product data in product collection
     app.post("/products", async (req, res) => {
       const classDetails = req.body;
-     const result = await classCollection.insertOne(classDetails);
+     const result = await productCollection.insertOne(classDetails);
       res.send(result);
     });
 
-    // // get products
+    // get products
    
     app.get("/products", async (req, res) => {
       const page = parseInt( req.query.page)
       const size = parseInt(req.query.size)
-      const result = await classCollection
+      const result = await productCollection
         .find()
         .skip(page * size)
         .limit(size)
@@ -185,12 +185,13 @@ async function run() {
     });
 
     app.get("/products-count", async (req, res) => {
-      const count = await classCollection.countDocuments();
+      const count = await productCollection.countDocuments();
       res.send({ count });
     });
 
+    // get latest 6 products
     app.get("/latest-products", async (req, res) => {
-      const result = await classCollection
+      const result = await productCollection
         .find()
         .sort({ createdAt: -1 })
         .limit(6)
@@ -202,7 +203,7 @@ async function run() {
     app.get("/product/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
-      const result = await classCollection.findOne(query);
+      const result = await productCollection.findOne(query);
       res.send(result);
     });
 
@@ -232,7 +233,7 @@ async function run() {
     
       try {
         // Update the document in the database
-        const result = await classCollection.updateOne(filter, updatedDoc);
+        const result = await productCollection.updateOne(filter, updatedDoc);
         res.send(result);
       } catch (error) {
         console.error("Error updating product:", error);
@@ -240,11 +241,11 @@ async function run() {
       }
     });
 
-    // delete class collection data
+    // delete product collection data
     app.delete("/product/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
-      const result = await classCollection.deleteOne(query);
+      const result = await productCollection.deleteOne(query);
       res.send(result);
     });
 
@@ -289,6 +290,19 @@ async function run() {
       res.send(result);
     });
 
+    // get blogs
+    app.get("/blogs", async (req, res) => {
+      const result = await blogCollection.find().toArray();
+      res.send(result);
+    });
+    // get single blog
+    app.get("/blog/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await blogCollection.findOne(query);
+      res.send(result);
+    });
+
     
  
     // review collection ----------
@@ -302,6 +316,30 @@ async function run() {
       res.send(result)
     })
 
+     // --------- carts collection -----------------
+
+    // get method
+    app.get("/carts", async (req, res) => {
+      const email = req.query.email;
+      const query = { email: email };
+      const result = await cartCollection.find(query).toArray();
+      res.send(result);
+    });
+
+    // post method
+    app.post("/carts", async (req, res) => {
+      const cartItem = req.body;
+      const result = await cartCollection.insertOne(cartItem);
+      res.send(result);
+    });
+
+    // delete method
+    app.delete("/carts/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await cartCollection.deleteOne(query);
+      res.send(result);
+    });
 
     
     // Send a ping to confirm a successful connection
@@ -317,9 +355,9 @@ async function run() {
 run().catch(console.dir);
 
 app.get("/", (req, res) => {
-  res.send("Hello from Skillify Server..");
+  res.send("Hello from dressU Server..");
 });
 
 app.listen(port, () => {
-  console.log(`Skillify  is running on port ${port}`);
+  console.log(`dressU  is running on port ${port}`);
 });

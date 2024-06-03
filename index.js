@@ -57,29 +57,8 @@ async function run() {
     const reviewCollection = client.db("dressu").collection("reviews");
     const cartCollection = client.db("dressu").collection("carts");
 
-    // Role Verification----------------------------
-
-    // For admins
-    const verifyAdmin = async (req, res, next) => {
-      const user = req.user;
-      console.log("admin---", user);
-      const query = { email: user?.email };
-      const result = await usersCollection.findOne(query);
-      if (!result || result?.role !== "admin")
-        return res.status(401).send({ message: "unauthorized access" });
-      next();
-    };
-
-    // For teacher
-    const verifyTeacher = async (req, res, next) => {
-      const user = req.user;
-      const query = { email: user?.email };
-      const result = await usersCollection.findOne(query);
-      if (!result || result?.role !== "teacher")
-        return res.status(401).send({ message: "unauthorized access" });
-      next();
-    };
-
+ 
+  
      // auth related api
     app.post("/jwt", async (req, res) => {
       const user = req.body;
@@ -112,9 +91,9 @@ async function run() {
       }
     });
 
-    // // user collection -------------------
+    // user collection -------------------
 
-    // // Save or modify user email, status in DB
+    // Save or modify user email, status in DB
     app.put("/users/:email", async (req, res) => {
       const email = req.params.email;
       const user = req.body;
@@ -173,21 +152,21 @@ async function run() {
     // get products
    
     app.get("/products", async (req, res) => {
-      const page = parseInt( req.query.page)
-      const size = parseInt(req.query.size)
-      const result = await productCollection
-        .find()
-        .skip(page * size)
-        .limit(size)
+      const { page = 0, size = 10, category, sort } = req.query;
+      const query = category ? { category } : {};
+      const sortOrder = sort === 'lowToHigh' ? 1 : sort === 'highToLow' ? -1 : 0;
+      const sortOption = sortOrder ? { price: sortOrder } : {};
+      const products = await productCollection
+        .find(query)
+        .sort(sortOption)
+        .skip(parseInt(page) * parseInt(size))
+        .limit(parseInt(size))
         .toArray();
-      res.send(result);
+        const count = await productCollection.countDocuments(query)
+        res.json({ products, count});
     });
 
-    app.get("/products-count", async (req, res) => {
-      const count = await productCollection.countDocuments();
-      res.send({ count });
-    });
-
+ 
     // get latest 6 products
     app.get("/latest-products", async (req, res) => {
       const result = await productCollection

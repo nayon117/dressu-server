@@ -14,8 +14,7 @@ app.use(
   cors({
     origin: [
       "http://localhost:5173",
-      "https://skillify-client.web.app",
-      "https://skillify-client.firebaseapp.com"
+      "https://dressu-inc.web.app",
     ],
     credentials: true,
   })
@@ -142,12 +141,12 @@ async function run() {
     });
 
  // get users
-    app.get("/users", verifyToken, async (req, res) => {
+    app.get("/users", async (req, res) => {
       const result = await usersCollection.find().toArray();
       res.send(result);
     });
 
-    app.put("/users/update/:email", verifyToken, async (req, res) => {
+    app.put("/users/update/:email",async (req, res) => {
       const email = req.params.email;
       const user = req.body;
       const query = { email: email };

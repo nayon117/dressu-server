@@ -163,7 +163,7 @@ async function run() {
         .limit(parseInt(size))
         .toArray();
         const count = await productCollection.countDocuments(query)
-        res.json({ products, count});
+        res.json({products, count});
     });
 
  
@@ -251,11 +251,27 @@ async function run() {
     });
 
     app.get("/bookings", async (req, res) => {
-      const stEmail = req.query.stEmail;
-      console.log(stEmail);
+     const booking = req.body;
       const result = await bookingCollection
-        .find({ stEmail: stEmail })
+        .find(booking)
         .toArray();
+      res.send(result);
+    });
+
+    // get personal bookings
+    app.get("/personal-bookings", async (req, res) => {
+      const userEmail = req.query.userEmail;
+      const result = await bookingCollection
+        .find({ userEmail: userEmail })
+        .toArray();
+      res.send(result);
+    });
+
+    // get single booking
+    app.get("/booking/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await bookingCollection.findOne(query);
       res.send(result);
     });
 
